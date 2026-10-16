@@ -40,9 +40,12 @@ PUSH_CONTATO = "mailto:276884055+Drakezera1337@users.noreply.github.com"
 GIST_API = "https://api.github.com/gists"
 GIST_DESCRICAO = "Auto Radar – carros e motos (OLX + Webmotors)"
 GIST_LER_S = 30              # confere push.json (inscricoes e pedidos de teste)
-GIST_PUBLICAR_MIN_S = 30     # o GitHub bloqueia quem grava no Gist com muita frequencia
+GIST_PUBLICAR_MIN_S = 90     # o GitHub bloqueia (403) quem grava arquivos grandes no Gist com muita frequencia
 GIST_REPUBLICAR_S = 10 * 60  # sem novidade, republica (o celular ve que o PC esta vivo)
 ANUNCIO_MAX_DIAS = 7         # anuncio que nao aparece ha mais que isso sai do celular
+CELULAR_MAX_POR_FONTE = 300  # o Gist (e o celular) recebe so o que interessa; o app do PC mostra tudo
+CELULAR_DESCRICAO = 300      # caracteres da descricao no Gist
+CELULAR_FOTOS = 4
 
 
 # --------------------------------------------------------------------------- #
@@ -67,7 +70,15 @@ def gravar_json(caminho, valor):
 
 
 DADOS = ler_json(DADOS_PATH, {})          # {fonte: {anuncios: [...], status: {...}, recebidoEm: ms}}
+AJUSTES_BAK = AJUSTES_PATH.replace(".json", ".bak.json")
 AJUSTES = ler_json(AJUSTES_PATH, {})      # {gistToken, gistId, inscricoes, testes, notificados, avisos}
+# ajustes.json sumiu ou perdeu a conexao com o Gist (apagado sem querer): volta da copia
+if not AJUSTES.get("gistToken"):
+    _bak = ler_json(AJUSTES_BAK, {})
+    if _bak.get("gistToken"):
+        AJUSTES = {**_bak, **AJUSTES, "gistToken": _bak["gistToken"], "gistId": _bak.get("gistId"),
+                   "inscricoes": AJUSTES.get("inscricoes") or _bak.get("inscricoes") or []}
+        STATE_INICIO = "[ajustes] conexao com o Gist restaurada da copia de seguranca (ajustes.bak.json)"
 _publicar = threading.Event()
 _mudou = threading.Condition()
 STATE = {"ultima_mudanca": 0}
@@ -76,6 +87,8 @@ STATE = {"ultima_mudanca": 0}
 def salvar_ajustes():
     with _lock:
         gravar_json(AJUSTES_PATH, AJUSTES)
+        if AJUSTES.get("gistToken"):
+            gravar_json(AJUSTES_BAK, AJUSTES)   # copia de seguranca da conexao com o celular
 
 
 def agora_ms():
@@ -327,14 +340,40 @@ def json_do_arquivo(arquivos, nome, padrao):
         return padrao
 
 
+def para_o_celular(anuncios):
+    """Corta o que vai pro Gist: todas as oportunidades/bons precos/que baixaram/novos
+    (48 h) e completa com os mais recentes ate CELULAR_MAX_POR_FONTE, com descricao e
+    fotos reduzidas. Sem isso o olx.json passava de 1 MB e o GitHub bloqueava (403)."""
+    agora = agora_ms()
+    def importante(a):
+        return (a.get("nivel") in ("oportunidade", "suspeito", "bom")
+                or (a.get("precoOriginal") or 0) > (a.get("preco") or 0)
+                or (not a.get("inicial") and agora - (a.get("primeiroVisto") or 0) < 48 * 3600000))
+    imp = [a for a in anuncios if importante(a)]
+    ids = {a["id"] for a in imp}
+    resto = sorted((a for a in anuncios if a["id"] not in ids),
+                   key=lambda a: -(a.get("dataPublicacao") or a.get("primeiroVisto") or 0))
+    saida = []
+    for a in imp + resto[:max(0, CELULAR_MAX_POR_FONTE - len(imp))]:
+        b = {k: v for k, v in a.items() if k not in ("fotoGrande", "vistoEm")}
+        if b.get("descricao"):
+            b["descricao"] = b["descricao"][:CELULAR_DESCRICAO]
+        if b.get("fotos"):
+            b["fotos"] = b["fotos"][:CELULAR_FOTOS]
+        saida.append(b)
+    return saida
+
+
 def conteudo_publicacao():
     """{arquivo: texto} e uma assinatura que so muda quando os anuncios mudam."""
     pub = anuncios_publicos()
     arquivos, assinatura = {}, hashlib.sha1()
     for fonte, d in pub.items():
-        assinatura.update(json.dumps(d["anuncios"], sort_keys=True, ensure_ascii=False).encode())
+        lista = para_o_celular(d["anuncios"])
+        assinatura.update(json.dumps(lista, sort_keys=True, ensure_ascii=False).encode())
         assinatura.update(json.dumps([d["status"].get("bloqueado"), d["ativo"]]).encode())
-        arquivos[f"{fonte}.json"] = json.dumps({**d, "ts": agora_ms()}, ensure_ascii=False, separators=(",", ":"))
+        arquivos[f"{fonte}.json"] = json.dumps({**d, "anuncios": lista, "total": len(d["anuncios"]), "ts": agora_ms()},
+                                                ensure_ascii=False, separators=(",", ":"))
     return arquivos, assinatura.hexdigest()
 
 
@@ -379,6 +418,11 @@ def laco_gist():
             espera = 60
         except urllib.error.HTTPError as exc:
             if exc.code in (403, 429):
+                try:  # o GitHub diz o motivo (limite secundario, token sem permissao...)
+                    motivo = json.loads(exc.read() or b"{}").get("message", "")
+                except Exception:  # noqa: BLE001
+                    motivo = ""
+                print(f"[gist] resposta do GitHub: {exc.code} {motivo[:200]}")
                 pedido = int(exc.headers.get("Retry-After") or 0)
                 segundos = max(pedido, espera)
                 pausa_ate, espera = time.time() + segundos, min(espera * 2, 900)
@@ -539,6 +583,8 @@ def log_sem_janela():
 
 def main():
     log_sem_janela()
+    if globals().get("STATE_INICIO"):
+        print(STATE_INICIO)
     try:
         server = Servidor(("127.0.0.1", PORT), Handler)
     except OSError:
