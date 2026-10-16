@@ -66,6 +66,23 @@ function desc(d) {
   if (d == null) return '';
   return `<b class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? '−' : '+'}${Math.abs(Math.round(d))}%</b>`;
 }
+// A OLX manda a descrição com HTML escapado ("&lt;br&gt;" = <br>), às vezes duas
+// vezes. Vira texto puro: <br> e </p> viram quebra de linha, códigos (&amp;,
+// &#x27;...) viram o caractere, sobra de tag sai e linhas em branco demais somem.
+function limparDescricao(texto) {
+  if (!texto) return "";
+  let s = String(texto);
+  for (let i = 0; i < 2; i++) {
+    s = s.replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"')
+      .replace(/&#x27;|&#39;|&apos;/gi, "'").replace(/&nbsp;/gi, " ")
+      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+      .replace(/&amp;/gi, "&");
+  }
+  return s.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]*>/g, "")
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function deBase64url(b64) {
   const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
   return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
@@ -367,7 +384,7 @@ function renderDetail(fonte, id) {
       </div>
       ${a.chips?.length ? `<div class="tags">${a.chips.map((c) => `<span class="tag ${esc(c[0])}">${esc(c[1])}</span>`).join('')}</div>` : ''}
       <div class="kv">${dados.map(([r, v]) => `<span>${esc(r)}</span><b>${esc(v)}</b>`).join('')}</div>
-      ${a.descricao ? `<div class="msg">${esc(a.descricao)}</div>` : ''}
+      ${a.descricao ? `<div class="msg">${esc(limparDescricao(a.descricao))}</div>` : ''}
     </div>
   </div>
   <div class="cta-bar">

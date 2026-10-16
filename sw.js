@@ -1,5 +1,5 @@
 // Auto Radar: cache para abrir rápido/offline e notificações de oportunidades (enviadas pelo server.py do PC).
-const CACHE = 'autoradar-v4';
+const CACHE = 'autoradar-v5';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'sync.js',
   'icon.svg', 'icon-192.png', 'badge-96.png', 'manifest.webmanifest'];
 

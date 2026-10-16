@@ -308,6 +308,18 @@ def github(url, token, method="GET", corpo=None):
 # GET condicional que volta 304 nao conta no limite de 5000/h da conta (dividido
 # com Ofertazera, Rastreazera, OLX no celular...) e nao baixa os ~900 KB de novo.
 _gist_etag = {"valor": None}
+# Contadores do limite da conta que o GitHub devolve em cada resposta (o mesmo pote
+# de 5000/h dos outros apps com token "classic"): aparecem em /api/status e no log
+LIMITE = {}
+
+
+def anotar_limite(headers):
+    if headers and headers.get("X-RateLimit-Limit"):
+        LIMITE.update({"limite": int(headers.get("X-RateLimit-Limit") or 0),
+                       "usados": int(headers.get("X-RateLimit-Used") or 0),
+                       "restantes": int(headers.get("X-RateLimit-Remaining") or 0),
+                       "zeraEm": int(headers.get("X-RateLimit-Reset") or 0) * 1000,
+                       "visto": agora_ms()})
 
 
 def gist_request(method="GET", corpo=None, condicional=False):
@@ -321,9 +333,11 @@ def gist_request(method="GET", corpo=None, condicional=False):
                                  data=json.dumps(corpo).encode() if corpo is not None else None)
     try:
         with urllib.request.urlopen(req, timeout=30) as res:
+            anotar_limite(res.headers)
             _gist_etag["valor"] = res.headers.get("ETag") or _gist_etag["valor"]
             return json.loads(res.read())
     except urllib.error.HTTPError as exc:
+        anotar_limite(exc.headers)
         if exc.code == 304:
             return None
         raise
@@ -446,7 +460,7 @@ def laco_gist():
                     motivo = json.loads(exc.read() or b"{}").get("message", "")
                 except Exception:  # noqa: BLE001
                     motivo = ""
-                print(f"[gist] resposta do GitHub: {exc.code} {motivo[:200]}")
+                print(f"[gist] resposta do GitHub: {exc.code} {motivo[:120]} | limite da conta: {LIMITE}")
                 pedido = int(exc.headers.get("Retry-After") or 0)
                 segundos = max(pedido, espera)
                 pausa_ate, espera = time.time() + segundos, min(espera * 2, 900)
@@ -553,6 +567,7 @@ class Handler(SimpleHTTPRequestHandler):
             "gist": {"id": cfg["gistId"], "tokenFim": cfg["token"][-4:]} if cfg else None,
             "aparelhos": [i.get("aparelho", "?") for i in AJUSTES.get("inscricoes") or []],
             "pushPronto": os.path.exists(PUSH_PEM) and bool(carregar_webpush()),
+            "limiteGitHub": LIMITE,
             "agora": agora_ms(),
         }
 
