@@ -441,6 +441,8 @@ function abrirGaleria(fotos, inicio = 0) {
         const img = $('img', slide);
         const zoom = !slide.classList.contains('zoom');
         slide.classList.toggle('zoom', zoom);
+        img.style.width = '';
+        delete slide.dataset.escala;
         if (zoom) {
           const r = img.getBoundingClientRect();
           requestAnimationFrame(() => {
@@ -456,6 +458,7 @@ function abrirGaleria(fotos, inicio = 0) {
     });
   }
   arrastarParaFechar(g, trilho);
+  pincaNaFoto(g);
   history.pushState({ galeria: true }, '');
 }
 
@@ -507,6 +510,61 @@ function arrastarParaFechar(g, trilho) {
   trilho.addEventListener('touchend', soltar);
   trilho.addEventListener('touchcancel', soltar);
 }
+
+// Pinça com dois dedos amplia a foto em tela cheia (1× a 5×), mantendo o ponto
+// entre os dedos no lugar. É feita pelo app porque o zoom da página está
+// desligado (ver bloqueio logo abaixo). Abaixo de ~1,05× volta ao normal.
+function pincaNaFoto(g) {
+  for (const slide of g.querySelectorAll('.gal-slide')) {
+    const img = $('img', slide);
+    let d0 = 0, s0 = 1, fx = 0, fy = 0;
+    const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const meio = (t) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
+    slide.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 2) return;
+      const r = img.getBoundingClientRect();
+      const m = meio(e.touches);
+      d0 = dist(e.touches);
+      s0 = Number(slide.dataset.escala || (slide.classList.contains('zoom') ? 2.5 : 1));
+      fx = (m.x - r.left) / r.width;   // ponto da foto entre os dedos (0..1)
+      fy = (m.y - r.top) / r.height;
+    }, { passive: true });
+    slide.addEventListener('touchmove', (e) => {
+      if (e.touches.length !== 2 || !d0) return;
+      e.preventDefault();
+      const escala = Math.min(5, Math.max(1, s0 * dist(e.touches) / d0));
+      slide.dataset.escala = String(escala);
+      slide.classList.toggle('zoom', escala > 1.05);
+      img.style.width = escala > 1.05 ? `${escala * 100}%` : '';
+      if (escala > 1.05) {
+        const m = meio(e.touches), rs = slide.getBoundingClientRect();
+        slide.scrollLeft = fx * img.offsetWidth - (m.x - rs.left);
+        slide.scrollTop = fy * img.offsetHeight - (m.y - rs.top);
+      }
+    }, { passive: false });
+    const fim = (e) => {
+      if (e.touches.length >= 2 || !d0) return;
+      d0 = 0;
+      if (Number(slide.dataset.escala || 1) <= 1.05) {
+        slide.classList.remove('zoom');
+        img.style.width = '';
+        delete slide.dataset.escala;
+      }
+    };
+    slide.addEventListener('touchend', fim);
+    slide.addEventListener('touchcancel', fim);
+  }
+}
+
+// Zoom da página bloqueado (só as fotos em tela cheia ampliam):
+// - iPhone/Safari ignora o user-scalable=no e manda eventos "gesture*" na pinça;
+// - fallback: dois dedos se mexendo fora da tela cheia não fazem nada.
+for (const tipo of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(tipo, (e) => { if (!e.target.closest?.('#galeria')) e.preventDefault(); }, { passive: false });
+}
+document.addEventListener('touchmove', (e) => {
+  if (e.touches.length > 1 && !e.target.closest?.('#galeria')) e.preventDefault();
+}, { passive: false });
 
 function fecharGaleria() { document.getElementById('galeria')?.remove(); }
 window.addEventListener('popstate', fecharGaleria);
