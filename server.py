@@ -304,9 +304,29 @@ def github(url, token, method="GET", corpo=None):
         return json.loads(res.read())
 
 
-def gist_request(method="GET", corpo=None):
+# ETag da ultima versao do Gist que este servidor conhece (leu ou acabou de gravar).
+# GET condicional que volta 304 nao conta no limite de 5000/h da conta (dividido
+# com Ofertazera, Rastreazera, OLX no celular...) e nao baixa os ~900 KB de novo.
+_gist_etag = {"valor": None}
+
+
+def gist_request(method="GET", corpo=None, condicional=False):
+    """condicional=True: devolve None quando o Gist nao mudou desde a ultima vez (304)."""
     cfg = gist_cfg()
-    return github(f"{GIST_API}/{cfg['gistId']}", cfg["token"], method, corpo)
+    headers = {"Authorization": f"Bearer {cfg['token']}", "Accept": "application/vnd.github+json",
+               "Content-Type": "application/json", "User-Agent": "AutoRadar"}
+    if condicional and _gist_etag["valor"]:
+        headers["If-None-Match"] = _gist_etag["valor"]
+    req = urllib.request.Request(f"{GIST_API}/{cfg['gistId']}", method=method, headers=headers,
+                                 data=json.dumps(corpo).encode() if corpo is not None else None)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as res:
+            _gist_etag["valor"] = res.headers.get("ETag") or _gist_etag["valor"]
+            return json.loads(res.read())
+    except urllib.error.HTTPError as exc:
+        if exc.code == 304:
+            return None
+        raise
 
 
 def conectar_gist(token):
@@ -378,8 +398,12 @@ def conteudo_publicacao():
 
 
 def processar_push_json():
-    """Le push.json (inscricoes + pedidos de teste vindos do celular)."""
-    arquivos = gist_request().get("files") or {}
+    """Le push.json (inscricoes + pedidos de teste vindos do celular). So baixa o
+    Gist se ele mudou desde a ultima leitura/gravacao deste servidor (ETag)."""
+    gist = gist_request(condicional=True)
+    if gist is None:
+        return  # nada mudou (o celular nao mexeu no push.json)
+    arquivos = gist.get("files") or {}
     inscricoes = [i for i in json_do_arquivo(arquivos, "push.json", [])
                   if isinstance(i, dict) and i.get("endpoint") and i.get("keys")]
     AJUSTES["inscricoes"] = inscricoes  # copia local: o push sai mesmo com o GitHub fora do ar
