@@ -10,23 +10,22 @@ Mesmo esquema do Rastreazera / FB Radar / Ofertazera:
 
 ```
 Chrome do PC
-  ├─ extensão OLX Auto Radar      (D:\Loja\BOT\Meu\olx-auto-radar)
-  └─ extensão Webmotors Radar     (D:\Loja\BOT\Meu\webmotors-radar)
-       └─ a cada ciclo mandam os anúncios avaliados (FIPE, mercado, sinais) para
+  └─ extensão Auto Radar (OLX + Webmotors)   (D:\Loja\BOT\Meu\olx-auto-radar)
+       └─ a cada ciclo de cada site manda os anúncios avaliados (FIPE, mercado, sinais) para
           server.py (PC, localhost:8790)
             ├─ envia Web Push das oportunidades para os aparelhos inscritos (na hora)
             └─ publica olx.json e webmotors.json num Gist secreto ──> app no celular (GitHub Pages)
 ```
 
 Quem decide o que é oportunidade (desconto mínimo, leilão, preço máximo, só particular…) são as
-**configurações de cada extensão**. O app só mostra e notifica.
+**configurações da extensão**. O app só mostra e notifica.
 
 ## Ligar no PC
 
 1. O servidor inicia sozinho com o Windows, **sem janela** (atalho `Auto Radar (servidor)` em `shell:startup`
    rodando `pythonw server.py`; mensagens e erros vão para `server.log`). Para rodar com janela, use `iniciar.bat`;
    para parar, `parar.bat`. Abra http://localhost:8790
-2. Recarregue as duas extensões em `chrome://extensions` (↻). O painel delas mostra "📱 celular conectado".
+2. Recarregue a extensão Auto Radar em `chrome://extensions` (↻). O painel dela mostra "📱 celular conectado".
 3. No Auto Radar (http://localhost:8790) → Ajustes → cole um token do GitHub **só com a permissão gist**, criado
    para este projeto: https://github.com/settings/tokens/new?scopes=gist&description=Auto%20Radar (validade
    “No expiration”) → **Conectar**.
