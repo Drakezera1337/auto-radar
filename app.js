@@ -310,6 +310,7 @@ function linhaRef(rotulo, valor, d, obs) {
 
 function renderDetail(fonte, id) {
   const a = S.anuncios.find((x) => x.fonte === fonte && String(x.id) === String(id));
+  detalheDesenhado = location.hash + JSON.stringify(a || null);   // ver redesenhar()
   if (!a) {
     view.innerHTML = `<div class="empty"><b>Anúncio não encontrado</b>Ele pode ter saído do ar ou ainda não chegou neste aparelho.<br><a class="btn btn-brand" href="#/">Voltar</a></div>`;
     return;
@@ -331,8 +332,10 @@ function renderDetail(fonte, id) {
   ].filter(([, v]) => v);
   const site = FONTES[a.fonte];
   view.innerHTML = `<div class="detail">
-    <div class="hero">${fotos.length ? `<img id="heroImg" src="${esc(fotos[0])}" alt="">` : ICON.car}</div>
-    ${fotos.length > 1 ? `<div class="gallery">${fotos.map((f, i) => `<img src="${esc(f)}" data-i="${i}" class="${i ? '' : 'sel'}" alt="">`).join('')}</div>` : ''}
+    <div class="fotos">${fotos.length
+      ? fotos.map((f, i) => `<img src="${esc(f)}" data-foto="${i}" decoding="async" ${i > 1 ? 'loading="lazy"' : ''} alt="">`).join('')
+      : `<div class="sem-foto">${ICON.car}</div>`}</div>
+    ${fotos.length > 1 ? `<p class="fotos-dica">${fotos.length} fotos · toque para ver em tela cheia</p>` : ''}
     <div class="body">
       <h1>${a.tipo === 'moto' ? '🏍 ' : '🚗 '}${esc(a.titulo)}</h1>
       <div class="price-row"><span class="price">${brl(a.preco)}</span>${a.precoOriginal && a.precoOriginal > a.preco ? `<span class="old">${brl(a.precoOriginal)}</span>` : ''}<span class="fonte ${a.fonte}">${site}</span></div>
@@ -350,10 +353,7 @@ function renderDetail(fonte, id) {
     <button class="btn btn-ghost quadrado" id="favDet" aria-label="Favoritar">${S.favoritos.has(k) ? '♥' : '♡'}</button>
     <button class="btn btn-ghost quadrado" id="ocultar" aria-label="Ocultar" title="${S.ocultos.has(k) ? 'Mostrar de novo' : 'Ocultar'}">${S.ocultos.has(k) ? '👁' : '🙈'}</button>
   </div>`;
-  view.querySelectorAll('.gallery img').forEach((img) => img.onclick = () => {
-    $('#heroImg').src = img.src;
-    view.querySelectorAll('.gallery img').forEach((x) => x.classList.toggle('sel', x === img));
-  });
+  view.querySelectorAll('.fotos img[data-foto]').forEach((img) => img.onclick = () => abrirGaleria(fotos.map(fotoTelaCheia), +img.dataset.foto));
   $('#favDet').onclick = () => {
     if (S.favoritos.has(k)) S.favoritos.delete(k); else S.favoritos.add(k);
     gravarJSON(K.favoritos, [...S.favoritos]);
@@ -404,6 +404,162 @@ function renderFiltros() {
   $('#limpar').onclick = () => { S.filtros = { ...FILTROS_PADRAO, ordem: f.ordem }; aplicar(); };
   $('#reexibir')?.addEventListener('click', (e) => { e.preventDefault(); S.ocultos.clear(); gravarJSON(K.ocultos, []); renderFiltros(); });
 }
+
+// ---------------------------------------------------------------- fotos em tela cheia e gestos
+// Mesmo comportamento do app "OLX no celular": tocar numa foto abre em tela cheia;
+// desliza pro lado entre as fotos; dois toques amplia (e dá pra arrastar);
+// arrastar pra baixo, ✕, tocar fora da foto ou "voltar" do celular fecha.
+
+// Na tela cheia vale a foto maior: OLX original (/images/), Webmotors 1280 px
+function fotoTelaCheia(url) {
+  const olx = /^(https:\/\/img\.olx\.com\.br\/)thumbs\d+x\d+\/(\d+\/\d+\.\w+)/.exec(url || '');
+  if (olx) return `${olx[1]}images/${olx[2]}`;
+  if (/image\.webmotors\.com\.br/.test(url || '')) return url.replace(/([?&])w=\d+&h=\d+/, '$1w=1280&h=960');
+  return url;
+}
+
+function abrirGaleria(fotos, inicio = 0) {
+  if (!fotos?.length) return;
+  fecharGaleria();
+  const g = document.createElement('div');
+  g.id = 'galeria';
+  g.innerHTML = `
+    <div class="gal-topo"><span id="galCont">${inicio + 1} / ${fotos.length}</span><button type="button" class="gal-x" aria-label="Fechar">✕</button></div>
+    <div class="gal-trilho">${fotos.map((f) => `<div class="gal-slide"><img src="${esc(f)}" loading="lazy" decoding="async" alt=""></div>`).join('')}</div>`;
+  document.body.appendChild(g);
+  const trilho = $('.gal-trilho', g);
+  requestAnimationFrame(() => { trilho.scrollLeft = inicio * trilho.clientWidth; });
+  trilho.addEventListener('scroll', () => {
+    $('#galCont').textContent = `${Math.round(trilho.scrollLeft / trilho.clientWidth) + 1} / ${fotos.length}`;
+  }, { passive: true });
+  $('.gal-x', g).addEventListener('click', () => history.back());
+  for (const slide of g.querySelectorAll('.gal-slide')) {
+    let ultimoToque = 0;
+    slide.addEventListener('click', (e) => {
+      const agora = Date.now();
+      if (agora - ultimoToque < 300) { // dois toques: amplia / volta ao normal
+        const img = $('img', slide);
+        const zoom = !slide.classList.contains('zoom');
+        slide.classList.toggle('zoom', zoom);
+        if (zoom) {
+          const r = img.getBoundingClientRect();
+          requestAnimationFrame(() => {
+            slide.scrollLeft = (e.clientX - r.left) * 1.5;
+            slide.scrollTop = (e.clientY - r.top) * 1.5;
+          });
+        }
+        ultimoToque = 0;
+        return;
+      }
+      ultimoToque = agora;
+      if (e.target === slide && !slide.classList.contains('zoom')) setTimeout(() => { if (ultimoToque === agora) history.back(); }, 320);
+    });
+  }
+  arrastarParaFechar(g, trilho);
+  history.pushState({ galeria: true }, '');
+}
+
+// Arrastar a foto pra baixo fecha a tela cheia (como no app de Fotos): a foto
+// acompanha o dedo e o fundo vai clareando; soltou depois de ~120 px (ou num
+// puxão rápido) fecha, senão volta pro lugar. Só vale com a foto sem zoom e
+// quando o gesto começa na vertical — o deslize pro lado continua trocando foto.
+function arrastarParaFechar(g, trilho) {
+  let x0 = 0, y0 = 0, t0 = 0, modo = null, dy = 0;
+  trilho.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1 || e.target.closest('.gal-slide.zoom')) { modo = 'nada'; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now(); modo = null; dy = 0;
+  }, { passive: true });
+  trilho.addEventListener('touchmove', (e) => {
+    if (modo === 'nada' || e.touches.length !== 1) return;
+    const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+    if (!modo) {
+      if (Math.abs(mx) < 8 && Math.abs(my) < 8) {
+        // ainda indefinido, mas já descendo: segura o gesto pro app desde o
+        // 1º movimento (no iPhone, depois que a rolagem começa não dá mais)
+        if (my > 0 && my >= Math.abs(mx)) e.preventDefault();
+        return;
+      }
+      modo = my > 0 && Math.abs(my) > Math.abs(mx) ? 'fechar' : 'nada';
+      if (modo !== 'fechar') return;
+      trilho.style.transition = g.style.transition = 'none';
+    }
+    e.preventDefault(); // não rola nada por baixo enquanto arrasta
+    dy = Math.max(0, my);
+    trilho.style.transform = `translateY(${dy}px) scale(${1 - Math.min(dy / 2000, 0.15)})`;
+    g.style.backgroundColor = `rgba(0,0,0,${Math.max(0.2, 1 - dy / 400)})`;
+  }, { passive: false });
+  const soltar = () => {
+    if (modo !== 'fechar') { modo = null; return; }
+    modo = null;
+    const rapido = dy > 40 && dy / Math.max(1, Date.now() - t0) > 0.6;
+    trilho.style.transition = 'transform .2s ease, opacity .2s ease';
+    g.style.transition = 'background-color .2s ease';
+    if (dy > 120 || rapido) {
+      trilho.style.transform = `translateY(${window.innerHeight}px)`;
+      trilho.style.opacity = '0';
+      g.style.backgroundColor = 'rgba(0,0,0,0)';
+      setTimeout(() => { if (document.getElementById('galeria') === g) history.back(); }, 180);
+    } else {
+      trilho.style.transform = '';
+      g.style.backgroundColor = '';
+    }
+  };
+  trilho.addEventListener('touchend', soltar);
+  trilho.addEventListener('touchcancel', soltar);
+}
+
+function fecharGaleria() { document.getElementById('galeria')?.remove(); }
+window.addEventListener('popstate', fecharGaleria);
+window.addEventListener('hashchange', fecharGaleria);
+
+function voltarUmPasso() {
+  if (history.length > 1) history.back(); else location.hash = '#/';
+}
+
+// Dentro de um anúncio, deslizar da esquerda pra direita volta um passo (como o
+// gesto de voltar do iPhone, que o app instalado não tem). A tela acompanha o
+// dedo; soltou depois de ~90 px (ou num puxão rápido) volta, senão fica. Não
+// vale começando no carrossel de fotos (lá o deslize troca de foto) nem com a
+// foto em tela cheia aberta. Move o detalhe e a barra de botões juntos (a barra
+// é fixa: mover o #view inteiro a tiraria do lugar).
+(function deslizarParaVoltar() {
+  let x0 = 0, y0 = 0, t0 = 0, modo = null, dx = 0, alvos = [];
+  const aplicar = (transform, opacity, transition) => alvos.forEach((el) => {
+    el.style.transition = transition; el.style.transform = transform; el.style.opacity = opacity;
+  });
+  view.addEventListener('touchstart', (e) => {
+    modo = 'nada';
+    if (!view.classList.contains('tela-anuncio') || e.touches.length !== 1) return;
+    if (document.getElementById('galeria') || e.target.closest('.fotos')) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now(); modo = null; dx = 0;
+    alvos = [$('.detail', view), $('.cta-bar', view)].filter(Boolean);
+  }, { passive: true });
+  view.addEventListener('touchmove', (e) => {
+    if (modo === 'nada' || e.touches.length !== 1) return;
+    const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+    if (!modo) {
+      if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+      modo = mx > 0 && mx > Math.abs(my) * 1.5 ? 'voltar' : 'nada';
+      if (modo !== 'voltar') return;
+    }
+    e.preventDefault();
+    dx = Math.max(0, mx);
+    aplicar(`translateX(${dx}px)`, String(Math.max(0.4, 1 - dx / 600)), 'none');
+  }, { passive: false });
+  const soltar = () => {
+    if (modo !== 'voltar') { modo = null; return; }
+    modo = null;
+    const rapido = dx > 40 && dx / Math.max(1, Date.now() - t0) > 0.6;
+    if (dx > 90 || rapido) {
+      aplicar(`translateX(${window.innerWidth}px)`, '0', 'transform .18s ease, opacity .18s ease');
+      setTimeout(voltarUmPasso, 160);
+    } else {
+      aplicar('', '', 'transform .18s ease, opacity .18s ease');
+    }
+  };
+  view.addEventListener('touchend', soltar);
+  view.addEventListener('touchcancel', soltar);
+})();
 
 // ---------------------------------------------------------------- notificações (Web Push)
 function pushSuportado() {
@@ -641,6 +797,7 @@ function rotaAtual() {
 function rotear() {
   const { h, tab } = rotaAtual();
   document.querySelectorAll('.bottomnav a').forEach((a) => a.classList.toggle('active', a.dataset.tab === tab));
+  view.classList.toggle('tela-anuncio', h.startsWith('#/anuncio/'));   // liga o deslizar pra voltar
   if (h.startsWith('#/anuncio/')) {
     const [fonte, id] = h.slice(10).split('/');
     renderDetail(fonte, decodeURIComponent(id || ''));
@@ -653,12 +810,29 @@ function rotear() {
   renderHome();
 }
 // Redesenha sem atrapalhar: não mexe em Filtros/Ajustes enquanto o usuário mexe neles
+// No anúncio aberto, só redesenha se o anúncio mudou de verdade (senão a tela
+// voltaria pro topo e o carrossel pra 1ª foto no meio da leitura) e nunca com
+// a foto em tela cheia aberta.
+let detalheDesenhado = '';
 function redesenhar() {
   const { h, tab } = rotaAtual();
-  if (tab === 'home' || tab === 'favoritos' || h.startsWith('#/anuncio/')) {
+  if (h.startsWith('#/anuncio/')) {
+    if (document.getElementById('galeria')) return;
+    const [fonte, id] = h.slice(10).split('/');
+    const a = S.anuncios.find((x) => x.fonte === fonte && String(x.id) === decodeURIComponent(id || ''));
+    const assinatura = h + JSON.stringify(a || null);
+    if (assinatura === detalheDesenhado) return;
+    detalheDesenhado = assinatura;
     const y = window.scrollY;
     rotear();
-    if (!h.startsWith('#/anuncio/')) window.scrollTo(0, y);
+    window.scrollTo(0, y);
+    return;
+  }
+  detalheDesenhado = '';
+  if (tab === 'home' || tab === 'favoritos') {
+    const y = window.scrollY;
+    rotear();
+    window.scrollTo(0, y);
   }
 }
 

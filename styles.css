@@ -133,12 +133,42 @@ button, select { font: inherit; cursor: pointer; }
 
 /* Detalhe */
 .detail { background: var(--card); min-height: 100vh; padding-bottom: 150px; }
-.detail .hero { width: 100%; aspect-ratio: 4/3; background: #000; display: grid; place-items: center; position: relative; }
-.detail .hero img { width: 100%; height: 100%; object-fit: contain; }
-.detail .hero svg { width: 72px; height: 72px; fill: var(--brand); opacity: .4; }
-.gallery { display: flex; gap: 6px; overflow-x: auto; padding: 8px 16px 0; }
-.gallery img { width: 72px; height: 54px; object-fit: cover; border-radius: 6px; border: 2px solid transparent; flex: none; }
-.gallery img.sel { border-color: var(--brand); }
+/* Carrossel de fotos do anúncio (desliza pro lado; tocar abre em tela cheia) */
+.fotos { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 12px 12px 0; scrollbar-width: none; }
+.fotos::-webkit-scrollbar { display: none; }
+.fotos img, .fotos .sem-foto {
+  flex: none; width: 86%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; scroll-snap-align: center;
+  background: var(--brand-soft); display: flex; align-items: center; justify-content: center;
+}
+.fotos .sem-foto { width: 100%; }
+.fotos .sem-foto svg { width: 72px; height: 72px; fill: var(--brand); opacity: .4; }
+.fotos img { cursor: zoom-in; }
+.fotos-dica { margin: 6px 16px 0; font-size: 12px; color: var(--muted); }
+/* Dentro do anúncio o deslize horizontal é do app (voltar); o carrossel de
+   fotos continua deslizando pro lado */
+#view.tela-anuncio { touch-action: pan-y; }
+#view.tela-anuncio .fotos { touch-action: pan-x pan-y; }
+
+/* Fotos em tela cheia */
+#galeria { position: fixed; inset: 0; z-index: 60; background: #000; display: flex; flex-direction: column; }
+.gal-topo {
+  display: flex; align-items: center; justify-content: space-between; padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+  color: #fff; font-weight: 700; font-size: 15px;
+}
+.gal-x { background: rgba(255, 255, 255, .14); border: 0; color: #fff; width: 40px; height: 40px; border-radius: 50%; font-size: 18px; }
+.gal-trilho { flex: 1; display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; padding-bottom: env(safe-area-inset-bottom); }
+/* O arrasto vertical é do app (fecha a foto): sem isso o iPhone assume o gesto
+   como rolagem e cancela os eventos de toque — a foto não acompanharia o dedo. */
+#galeria { touch-action: none; }
+/* cada foto (.gal-slide tem overflow) conta como área de rolagem própria — a
+   regra precisa estar nela e na imagem, não só no trilho */
+.gal-trilho, .gal-slide, .gal-slide img { touch-action: pan-x; }
+.gal-slide.zoom, .gal-slide.zoom img { touch-action: pan-x pan-y; }
+.gal-trilho::-webkit-scrollbar { display: none; }
+.gal-slide { flex: none; width: 100%; height: 100%; scroll-snap-align: center; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.gal-slide img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.gal-slide.zoom { overflow: auto; display: block; }
+.gal-slide.zoom img { max-width: none; max-height: none; width: 250%; }
 .detail .body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .detail h1 { font-size: 20px; line-height: 1.3; margin: 0; }
 .detail .price { font-size: 28px; }
