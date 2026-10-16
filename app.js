@@ -166,8 +166,30 @@ function fontesAtivas() {
   const fresco = NO_PC || Date.now() - S.publicadoEm < 20 * 60 * 1000;
   return Object.keys(FONTES).filter((f) => fresco && S.status[f]?.ativo && !S.status[f]?.bloqueado);
 }
+// Por que o celular não conseguiu ler o Gist, em linguagem de gente, com o que fazer
+function explicarErro(msg) {
+  if (!msg) return '';
+  if (/token inválido/.test(msg)) return '🔑 O token guardado neste celular não vale mais (ele foi trocado ou apagado no GitHub). No PC: Auto Radar → Ajustes → <b>Mostrar QR code</b>; aqui: Ajustes → <b>📷 Ler QR do PC</b>.';
+  if (/Gist não encontrado/.test(msg)) return '🔗 O Gist que este celular conhece não existe mais. Leia o QR do PC de novo (Ajustes → 📷 Ler QR do PC).';
+  if (/403/.test(msg)) return '⏳ O GitHub limitou as leituras por um tempo. Tenta de novo sozinho em alguns minutos.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return '📶 Sem conexão com a internet agora — mostrando os últimos dados recebidos.';
+  return `⚠️ Não consegui atualizar: ${esc(msg)}`;
+}
+function avisoErro() {
+  if (NO_PC) return '';
+  // leu sem token (token recusado): os anúncios chegam, mas avisa pra ler o QR de novo
+  if (!S.erro && Sync.enabled() && Sync.tokenRecusado()) return `<div class="aviso">${explicarErro('token inválido')}<br><small>Os anúncios continuam chegando; o QR novo é preciso pras notificações.</small></div>`;
+  if (!S.erro) return '';
+  return `<div class="aviso">${explicarErro(S.erro)}${S.publicadoEm ? `<br><small>Mostrando os dados do PC de ${ago(S.publicadoEm)}.</small>` : ''}</div>`;
+}
+
 function atualizarSelo() {
   const el = $('#live');
+  if (S.erro && !NO_PC && Sync.enabled()) {
+    el.className = 'live off';
+    el.querySelector('b').textContent = 'erro';
+    return;
+  }
   const ativas = fontesAtivas();
   const comDados = Object.keys(FONTES).filter((f) => S.status[f]?.recebidoEm);
   const tudo = ativas.length && ativas.length === comDados.length;
@@ -273,7 +295,7 @@ function renderHome(soFavoritos = false) {
         .map(([v, t]) => `<option value="${v}" ${S.filtros.ordem === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`;
     lista = ordenar(base.filter((a) => naLista(a, S.lista)));
   }
-  if (S.erro && !S.anuncios.length) html += `<div class="aviso">⚠️ ${esc(S.erro)}</div>`;
+  html += avisoErro();
   const bloqueado = S.status.webmotors?.bloqueado;
   if (bloqueado && !soFavoritos) html += `<div class="aviso">⏸ A Webmotors pediu a verificação “pressione e segure”. Abra a Webmotors no Chrome do PC e confirme.</div>`;
   if (!lista.length) {
@@ -830,7 +852,7 @@ async function renderSettings() {
   </div>
   <div class="panel">
     <h2>🔗 Conexão com o PC</h2>
-    <p>${conectado ? `✅ Conectado ao Gist ${esc(Sync.config().gistId.slice(0, 8))}…` : 'No PC: Auto Radar → Ajustes → <b>Mostrar QR code</b>. Aqui: leia o QR.'}</p>
+    <p>${conectado ? (S.erro ? explicarErro(S.erro) : Sync.tokenRecusado() ? explicarErro('token inválido') : `✅ Conectado ao Gist ${esc(Sync.config().gistId.slice(0, 8))}…`) : 'No PC: Auto Radar → Ajustes → <b>Mostrar QR code</b>. Aqui: leia o QR.'}</p>
     <div class="row"><button class="btn ${conectado ? 'btn-ghost' : 'btn-brand'}" id="lerQr">📷 Ler QR do PC</button></div>
     <div id="leitorQr" class="leitor" hidden><video id="videoQr" playsinline muted></video><button class="btn btn-ghost btn-sm" id="pararQr">Cancelar</button></div>
     <div class="field" style="margin-top:12px"><label>Ou cole o link de configuração</label><input id="linkConfig" placeholder="https://…#config=…"></div>
@@ -905,6 +927,7 @@ $('#q').addEventListener('input', (e) => {
   }, 200);
 });
 window.addEventListener('hashchange', rotear);
+$('#live').addEventListener('click', () => { if (!NO_PC) location.hash = '#/ajustes'; });
 
 // ---------------------------------------------------------------- atualização ao vivo
 async function laçoPc() {

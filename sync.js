@@ -8,10 +8,13 @@ const Sync = (() => {
   const CFG_KEY = 'autoradar:sync';
   const API = 'https://api.github.com/gists';
 
+  let tokenRecusado = false;
+
   function config() {
     try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; }
   }
   function setConfig(cfg) {
+    tokenRecusado = false;   // QR novo: testa o token de novo
     if (cfg) localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
     else localStorage.removeItem(CFG_KEY);
   }
@@ -20,19 +23,32 @@ const Sync = (() => {
     return Boolean(c.token && c.gistId);
   }
 
+  // tokenRecusado (declarado lá em cima): o token deste aparelho foi trocado/apagado
+  // no GitHub. A leitura continua sem token (Gist secreto é legível por quem sabe o
+  // id); só gravar (notificações) precisa de token válido — o app pede o QR de novo.
+
   async function request(url, { method = 'GET', body } = {}) {
     const { token } = config();
-    const res = await fetch(url, {
+    const pedir = (comToken) => fetch(url, {
       method,
       // GET: o navegador revalida com o ETag — sem mudança no Gist, o GitHub responde 304 e não baixa tudo de novo
       cache: method === 'GET' ? 'no-cache' : 'no-store',
       headers: {
         Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${token}`,
+        ...(comToken ? { Authorization: `Bearer ${token}` } : {}),
         ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
     });
+    // token já recusado antes: lê direto sem ele (não gasta uma requisição recusada a cada minuto)
+    const comToken = !(tokenRecusado && method === 'GET');
+    let res = await pedir(comToken);
+    if (res.status === 401 && method === 'GET') {
+      tokenRecusado = true;
+      res = await pedir(false);
+    } else if (res.ok && comToken) {
+      tokenRecusado = false;
+    }
     if (!res.ok) {
       const msg = res.status === 401 ? 'token inválido' : res.status === 404 ? 'Gist não encontrado'
         : res.status === 403 ? 'acesso negado pelo GitHub (403)' : `erro ${res.status}`;
@@ -72,5 +88,5 @@ const Sync = (() => {
     await gravar('push.json', resto);
   }
 
-  return { config, setConfig, enabled, ler, gravar, atualizarInscricao };
+  return { config, setConfig, enabled, ler, gravar, atualizarInscricao, tokenRecusado: () => tokenRecusado };
 })();
