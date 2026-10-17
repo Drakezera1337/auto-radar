@@ -48,6 +48,9 @@ html, body { margin: 0; }
    o iPhone deslocava a área visível e o menu e a barra "Abrir na OLX" saíam do
    lugar e andavam junto com a rolagem. Mesmo esquema do app "OLX no celular". */
 html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+/* No app instalado do iPhone, height: 100% fica ~55pt menor que a tela e sobrava
+   uma faixa vazia embaixo do menu. Preso nas quatro bordas, o body ocupa a tela toda. */
+body { position: fixed; inset: 0; }
 /* Sem zoom na página (pinça nem dois toques) — só as fotos em tela cheia ampliam,
    pelo próprio app (ver pincaNaFoto no app.js). O iPhone ignora o user-scalable=no
    do viewport; isto e o bloqueio dos eventos "gesture*" no app.js cobrem ele. */
@@ -248,7 +251,9 @@ button, select { font: inherit; cursor: pointer; }
 .bottomnav {
   flex: none; position: relative; z-index: 20;
   background: var(--card); border-top: 1px solid var(--line);
-  display: flex; padding-bottom: env(safe-area-inset-bottom);
+  display: flex;
+  /* a barrinha do iPhone (home indicator) fica bem embaixo: não precisa de toda a área segura */
+  padding-bottom: max(4px, calc(env(safe-area-inset-bottom) - 14px));
 }
 .bottomnav a { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 6px; font-size: 11px; font-weight: 700; color: var(--muted); }
 .bottomnav svg { width: 24px; height: 24px; fill: currentColor; }
