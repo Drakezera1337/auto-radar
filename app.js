@@ -61,6 +61,7 @@ function ago(ms) {
   if (d < 3600) return `há ${Math.floor(d / 60)} min`;
   if (d < 86400) return `há ${Math.floor(d / 3600)} h`;
   const dias = Math.floor(d / 86400);
+  if (dias >= 60) return `há ${Math.floor(dias / 30)} meses`;
   return dias === 1 ? 'ontem' : `há ${dias} dias`;
 }
 function desc(d) {
@@ -296,6 +297,7 @@ function card(a) {
       <div class="price-row"><span class="price">${brl(a.preco)}</span>${a.precoOriginal && a.precoOriginal > a.preco ? `<span class="old">${brl(a.precoOriginal)}</span>` : ''}</div>
       <div class="ref">${ref}</div>
       <div class="specs">${esc(specs)}</div>
+      ${a.dataPublicacao ? `<div class="anunciado">🕒 Anunciado ${ago(a.dataPublicacao)}</div>` : ''}
       ${tags.length ? `<div class="tags">${tags.map((c) => `<span class="tag ${esc(c[0])}">${esc(c[1])}</span>`).join('')}</div>` : ''}
       <div class="meta"><span class="local">📍 ${esc(a.cidade)}${a.profissional ? '' : ' · particular'}</span><span class="fonte ${a.fonte}">${FONTES[a.fonte]}</span></div>
     </div>
