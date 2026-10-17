@@ -6,6 +6,20 @@
 // Favoritos, ocultos e filtros ficam só neste aparelho.
 const $ = (s, el = document) => el.querySelector(s);
 const view = $('#view');
+
+// No app instalado do iPhone (iOS 26) a área da página fica uns 60pt mais curta
+// que a tela e sobrava uma faixa vazia embaixo do menu. Instalado, o app ocupa a
+// tela inteira, então o body usa a altura da tela quando ela for maior.
+function alturaDaTela() {
+  const instalado = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const tela = Math.abs(window.orientation) === 90 ? screen.width : screen.height;
+  const h = instalado && tela > window.innerHeight ? tela : 0;
+  document.body.style.height = h ? h + 'px' : '';
+  document.body.style.bottom = h ? 'auto' : '';
+}
+alturaDaTela();
+addEventListener('resize', alturaDaTela);
+addEventListener('orientationchange', () => setTimeout(alturaDaTela, 300));
 const NO_PC = ['localhost', '127.0.0.1'].includes(location.hostname);
 const K = { favoritos: 'autoradar:favoritos', ocultos: 'autoradar:ocultos', push: 'autoradar:push',
   filtros: 'autoradar:filtros', lista: 'autoradar:lista', cache: 'autoradar:cache', vistos: 'autoradar:vistos' };
