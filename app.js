@@ -156,12 +156,19 @@ async function carregar({ manual = false } = {}) {
   }
 }
 
+
+// O server.py encurta as fotos no Gist ("o:" OLX, "w:" Webmotors): aqui volta o endereço inteiro.
+function enderecoFoto(u) {
+  if (u.startsWith('o:')) return 'https://img.olx.com.br/thumbs700x500/' + u.slice(2);
+  if (u.startsWith('w:')) return 'https://image.webmotors.com.br/_fotos/anunciousados/gigante/' + u.slice(2) + '?s=fill&w=800&h=600&q=75';
+  return u;
+}
 function aplicarFontes(fontes) {
   const lista = [];
   S.status = {};
   for (const f of Object.keys(FONTES)) {
     const d = fontes[f] || {};
-    for (const a of d.anuncios || []) lista.push({ ...a, fonte: f });
+    for (const a of d.anuncios || []) lista.push({ ...a, fonte: f, fotos: (a.fotos || []).map(enderecoFoto) });
     S.status[f] = { ...(d.status || {}), recebidoEm: d.recebidoEm || 0, ativo: d.ativo };
   }
   S.anuncios = lista;
@@ -944,7 +951,16 @@ $('#q').addEventListener('input', (e) => {
     else renderHome();
   }, 200);
 });
-window.addEventListener('hashchange', rotear);
+// Cada tela lembra até onde foi rolada: ao voltar de um anúncio a lista fica na
+// mesma altura (a rolagem é do #view, o navegador não guarda isso sozinho).
+const rolagem = {};
+const hashDe = (url) => (url.split('#')[1] ? '#' + url.split('#')[1] : '#/');
+window.addEventListener('hashchange', (e) => {
+  rolagem[hashDe(e.oldURL)] = view.scrollTop;
+  rotear();
+  const h = location.hash || '#/';
+  if (!h.startsWith('#/anuncio/')) view.scrollTop = rolagem[h] || 0;
+});
 $('#live').addEventListener('click', () => { if (!NO_PC) location.hash = '#/ajustes'; });
 
 // ---------------------------------------------------------------- atualização ao vivo

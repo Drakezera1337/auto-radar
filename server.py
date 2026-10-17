@@ -45,7 +45,18 @@ GIST_REPUBLICAR_S = 10 * 60  # sem novidade, republica (o celular ve que o PC es
 ANUNCIO_MAX_DIAS = 7         # anuncio que nao aparece ha mais que isso sai do celular
 CELULAR_MAX_POR_FONTE = 300  # o Gist (e o celular) recebe so o que interessa; o app do PC mostra tudo
 CELULAR_DESCRICAO = 300      # caracteres da descricao no Gist
-CELULAR_FOTOS = 4
+CELULAR_FOTOS = 20
+# Fotos encurtadas no Gist (o app do celular remonta o endereco): o comeco e o fim
+# se repetem em todas, e com 20 fotos por anuncio o arquivo dobraria de tamanho.
+FOTO_PREFIXOS = (("o:", "https://img.olx.com.br/thumbs700x500/", ""),
+                 ("w:", "https://image.webmotors.com.br/_fotos/anunciousados/gigante/", "?s=fill&w=800&h=600&q=75"))
+
+
+def encurtar_foto(url):
+    for cod, ini, fim in FOTO_PREFIXOS:
+        if url.startswith(ini) and url.endswith(fim):
+            return cod + url[len(ini):len(url) - len(fim) if fim else None]
+    return url
 
 
 # --------------------------------------------------------------------------- #
@@ -394,7 +405,7 @@ def para_o_celular(anuncios):
         if b.get("descricao"):
             b["descricao"] = b["descricao"][:CELULAR_DESCRICAO]
         if b.get("fotos"):
-            b["fotos"] = b["fotos"][:CELULAR_FOTOS]
+            b["fotos"] = [encurtar_foto(u) for u in b["fotos"][:CELULAR_FOTOS]]
         saida.append(b)
     return saida
 
