@@ -253,7 +253,7 @@ button, select { font: inherit; cursor: pointer; }
   background: var(--card); border-top: 1px solid var(--line);
   display: flex;
   /* a barrinha do iPhone (home indicator) fica bem embaixo: não precisa de toda a área segura */
-  padding-bottom: max(4px, calc(env(safe-area-inset-bottom) - 14px));
+  padding-bottom: max(2px, calc(env(safe-area-inset-bottom) / 2 - 10px));
 }
 .bottomnav a { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 6px; font-size: 11px; font-weight: 700; color: var(--muted); }
 .bottomnav svg { width: 24px; height: 24px; fill: currentColor; }
