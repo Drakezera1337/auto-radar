@@ -959,7 +959,10 @@ window.addEventListener('hashchange', (e) => {
   rolagem[hashDe(e.oldURL)] = view.scrollTop;
   rotear();
   const h = location.hash || '#/';
-  if (!h.startsWith('#/anuncio/')) view.scrollTop = rolagem[h] || 0;
+  if (h.startsWith('#/anuncio/')) return;
+  const y = rolagem[h] || 0;
+  view.scrollTop = y;
+  requestAnimationFrame(() => { if (view.scrollTop !== y) view.scrollTop = y; });   // iPhone às vezes ignora antes do desenho
 });
 $('#live').addEventListener('click', () => { if (!NO_PC) location.hash = '#/ajustes'; });
 
@@ -979,7 +982,37 @@ navigator.serviceWorker?.addEventListener('message', (e) => {
   if (e.data?.tipo === 'push') setTimeout(() => carregar(), 40000); // dá tempo do PC publicar no Gist
   if (e.data?.tipo === 'abrir' && e.data.url) location.href = e.data.url;
 });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && !NO_PC) carregar(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !NO_PC) { carregar(); verificarAtualizacao(); } });
+
+// O iPhone deixa o app instalado aberto em segundo plano por dias, rodando a versão
+// antiga mesmo depois de publicada uma nova. Ao voltar pro app, confere a versão
+// publicada (config.js) e recarrega sozinho se mudou — lembrando a tela atual.
+async function verificarAtualizacao() {
+  try {
+    const txt = await (await fetch('config.js?t=' + Date.now(), { cache: 'no-store' })).text();
+    const publicada = Number((/const AR_VERSAO = (\d+);/.exec(txt) || [])[1]);
+    if (publicada && typeof AR_VERSAO === 'number' && publicada > AR_VERSAO && !document.getElementById('galeria')) location.reload();
+  } catch { /* sem rede: fica na versão atual */ }
+}
+if (!NO_PC) verificarAtualizacao();
+
+// Menu inferior: só troca de aba num toque de verdade. Ele fica fora da área que
+// rola, então começar a rolar a lista com o dedo em cima dele virava um "toque"
+// em Filtros. Arrastar em cima do menu agora rola a lista.
+(function toqueLimpoNoMenu() {
+  const nav = $('.bottomnav');
+  let y0 = 0, x0 = 0, yAnt = 0, arrastou = false;
+  nav.addEventListener('touchstart', (e) => {
+    x0 = e.touches[0].clientX; y0 = yAnt = e.touches[0].clientY; arrastou = false;
+  }, { passive: true });
+  nav.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    if (Math.abs(t.clientY - y0) > 8 || Math.abs(t.clientX - x0) > 8) arrastou = true;
+    if (arrastou) { view.scrollTop += yAnt - t.clientY; e.preventDefault(); }
+    yAnt = t.clientY;
+  }, { passive: false });
+  nav.addEventListener('click', (e) => { if (arrastou) { e.preventDefault(); arrastou = false; } }, true);
+})();
 setInterval(() => { if (!document.hidden && !NO_PC) carregar(); }, ATUALIZAR_MS);
 setInterval(() => { if (!document.hidden) { atualizarSelo(); redesenhar(); } }, 60000); // "há X min"
 
