@@ -314,7 +314,8 @@ LIMITE = {}
 
 
 def anotar_limite(headers):
-    if headers and headers.get("X-RateLimit-Limit"):
+    # so o pote "core" (5000/h, o que estoura); outros recursos tem limites proprios
+    if headers and headers.get("X-RateLimit-Limit") and (headers.get("X-RateLimit-Resource") or "core") == "core":
         LIMITE.update({"limite": int(headers.get("X-RateLimit-Limit") or 0),
                        "usados": int(headers.get("X-RateLimit-Used") or 0),
                        "restantes": int(headers.get("X-RateLimit-Remaining") or 0),

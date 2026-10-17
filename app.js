@@ -326,7 +326,7 @@ function renderHome(soFavoritos = false) {
   }
   view.innerHTML = html;
   view.querySelectorAll('[data-lista]').forEach((b) => b.onclick = () => {
-    S.lista = b.dataset.lista; S.limite = POR_PAGINA; localStorage.setItem(K.lista, S.lista); renderHome(); window.scrollTo(0, 0);
+    S.lista = b.dataset.lista; S.limite = POR_PAGINA; localStorage.setItem(K.lista, S.lista); renderHome(); view.scrollTop = 0;
   });
   $('#ordem')?.addEventListener('change', (e) => { S.filtros.ordem = e.target.value; salvarFiltros(); renderHome(); });
   $('#mais')?.addEventListener('click', () => { S.limite += POR_PAGINA; renderHome(soFavoritos); });
@@ -898,7 +898,7 @@ function rotear() {
   if (h.startsWith('#/anuncio/')) {
     const [fonte, id] = h.slice(10).split('/');
     renderDetail(fonte, decodeURIComponent(id || ''));
-    window.scrollTo(0, 0);
+    view.scrollTop = 0;
     return;
   }
   if (tab === 'filtros') return renderFiltros();
@@ -920,16 +920,16 @@ function redesenhar() {
     const assinatura = h + JSON.stringify(a || null);
     if (assinatura === detalheDesenhado) return;
     detalheDesenhado = assinatura;
-    const y = window.scrollY;
+    const y = view.scrollTop;
     rotear();
-    window.scrollTo(0, y);
+    view.scrollTop = y;
     return;
   }
   detalheDesenhado = '';
   if (tab === 'home' || tab === 'favoritos') {
-    const y = window.scrollY;
+    const y = view.scrollTop;
     rotear();
-    window.scrollTo(0, y);
+    view.scrollTop = y;
   }
 }
 

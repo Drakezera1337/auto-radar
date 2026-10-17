@@ -43,6 +43,11 @@
 [hidden] { display: none !important; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; }
+/* O documento nunca rola: cabeçalho, conteúdo (#view, que rola por dentro) e
+   menu inferior são uma coluna do tamanho da tela. Com a página inteira rolando,
+   o iPhone deslocava a área visível e o menu e a barra "Abrir na OLX" saíam do
+   lugar e andavam junto com a rolagem. Mesmo esquema do app "OLX no celular". */
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 /* Sem zoom na página (pinça nem dois toques) — só as fotos em tela cheia ampliam,
    pelo próprio app (ver pincaNaFoto no app.js). O iPhone ignora o user-scalable=no
    do viewport; isto e o bloqueio dos eventos "gesture*" no app.js cobrem ele. */
@@ -51,15 +56,19 @@ body {
   font-family: "Nunito Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
-  padding-bottom: calc(68px + env(safe-area-inset-bottom));
   font-size: 15px;
+  display: flex; flex-direction: column;
+}
+#view {
+  flex: 1; min-height: 0; width: 100%;
+  overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
 }
 a { color: inherit; text-decoration: none; }
 button, select { font: inherit; cursor: pointer; }
 
 /* Topbar */
 .topbar {
-  position: sticky; top: 0; z-index: 20;
+  flex: none; position: relative; z-index: 20;
   background: var(--brand);
   padding: calc(10px + env(safe-area-inset-top)) 16px 12px;
   color: #fff;
@@ -136,7 +145,9 @@ button, select { font: inherit; cursor: pointer; }
 .more { display: block; margin: 0 auto 16px; background: transparent; border: 1px solid var(--brand); color: var(--brand); padding: 10px 20px; border-radius: 99px; font-weight: 800; }
 
 /* Detalhe */
-.detail { background: var(--card); min-height: 100vh; padding-bottom: 150px; }
+.detail { background: var(--card); padding-bottom: 16px; flex: 1 0 auto; }
+/* anúncio curto: o detalhe estica e a barra de botões fica sempre embaixo */
+#view.tela-anuncio { display: flex; flex-direction: column; }
 /* Carrossel de fotos do anúncio (desliza pro lado; tocar abre em tela cheia) */
 .fotos { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 12px 12px 0; scrollbar-width: none; }
 .fotos::-webkit-scrollbar { display: none; }
@@ -198,8 +209,10 @@ button, select { font: inherit; cursor: pointer; }
 .btn-webmotors { background: var(--wm); color: #fff; }
 .btn-sm { padding: 8px 12px; font-size: 13px; }
 .btn[disabled] { opacity: .45; cursor: not-allowed; }
+/* Gruda no rodapé da área que rola (#view), logo acima do menu — sem "fixed",
+   que no iPhone descolava junto com a rolagem */
 .cta-bar {
-  position: fixed; left: 0; right: 0; bottom: calc(60px + env(safe-area-inset-bottom)); z-index: 15;
+  position: sticky; bottom: 0; z-index: 15;
   background: var(--card); border-top: 1px solid var(--line); padding: 10px 12px; display: flex; gap: 8px;
 }
 .cta-bar .btn { flex: 1; }
@@ -233,7 +246,7 @@ button, select { font: inherit; cursor: pointer; }
 
 /* Bottom nav */
 .bottomnav {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+  flex: none; position: relative; z-index: 20;
   background: var(--card); border-top: 1px solid var(--line);
   display: flex; padding-bottom: env(safe-area-inset-bottom);
 }
@@ -248,7 +261,7 @@ button, select { font: inherit; cursor: pointer; }
   max-width: calc(100% - 32px); box-shadow: 0 6px 20px rgba(0,0,0,.25);
 }
 .new-banner {
-  position: sticky; top: 118px; z-index: 10; margin: 8px auto 0; display: block;
+  position: sticky; top: 8px; z-index: 10; margin: 8px auto 0; display: block;
   background: var(--orange); color: #fff; border: 0; border-radius: 99px; padding: 8px 18px; font-weight: 800;
   box-shadow: 0 4px 14px rgba(242,128,0,.4);
 }
